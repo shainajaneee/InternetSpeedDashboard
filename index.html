@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Internet Speed Dashboard</title>
+<!-- Tailwind CSS -->
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.3/dist/tailwind.min.css" rel="stylesheet">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+
+<div class="container mx-auto p-6">
+
+  <!-- Header -->
+  <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <h1 class="text-4xl font-extrabold text-blue-600 dark:text-blue-400">Internet Speed Dashboard</h1>
+    <button id="darkModeToggle" class="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 transition">Toggle Dark Mode</button>
+  </header>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="bg-gradient-to-r from-blue-500 to-blue-700 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition">
+      <h2 class="text-lg font-semibold uppercase">Max Download</h2>
+      <p class="text-3xl font-bold mt-2" id="maxDownload">-- Mbps</p>
+    </div>
+    <div class="bg-gradient-to-r from-green-500 to-green-700 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition">
+      <h2 class="text-lg font-semibold uppercase">Max Upload</h2>
+      <p class="text-3xl font-bold mt-2" id="maxUpload">-- Mbps</p>
+    </div>
+    <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition">
+      <h2 class="text-lg font-semibold uppercase">Avg Ping</h2>
+      <p class="text-3xl font-bold mt-2" id="avgPing">-- ms</p>
+    </div>
+    <div class="bg-gradient-to-r from-red-500 to-red-700 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition">
+      <h2 class="text-lg font-semibold uppercase">Min Download</h2>
+      <p class="text-3xl font-bold mt-2" id="minDownload">-- Mbps</p>
+    </div>
+  </div>
+
+  <!-- Charts Side by Side -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg">
+      <h2 class="text-xl font-semibold mb-4 text-blue-600 dark:text-blue-400">Download & Upload Speed</h2>
+      <div class="h-64">
+        <canvas id="speedChart"></canvas>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg">
+      <h2 class="text-xl font-semibold mb-4 text-orange-500 dark:text-orange-400">Ping</h2>
+      <div class="h-64">
+        <canvas id="pingChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Last 10 Measurements Table -->
+  <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg overflow-x-auto">
+    <h2 class="text-xl font-semibold mb-4 text-purple-600 dark:text-purple-400">Last 10 Measurements</h2>
+    <table class="table-auto w-full text-left border-collapse">
+      <thead class="bg-gray-200 dark:bg-gray-700">
+        <tr>
+          <th class="px-4 py-2">Timestamp</th>
+          <th class="px-4 py-2">Download (Mbps)</th>
+          <th class="px-4 py-2">Upload (Mbps)</th>
+          <th class="px-4 py-2">Ping (ms)</th>
+        </tr>
+      </thead>
+      <tbody id="recentRecords"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- JS: Fetch data, populate stats, charts, table & dark mode -->
+<script>
+async function fetchData() {
+  const response = await fetch('data.php');
+  const data = await response.json();
+
+  // Stats
+  const maxDownload = Math.max(...data.download).toFixed(2);
+  const maxUpload = Math.max(...data.upload).toFixed(2);
+  const avgPing = (data.ping.reduce((a,b)=>a+b,0)/data.ping.length).toFixed(2);
+  const minDownload = Math.min(...data.download).toFixed(2);
+
+  document.getElementById('maxDownload').innerText = maxDownload + ' Mbps';
+  document.getElementById('maxUpload').innerText = maxUpload + ' Mbps';
+  document.getElementById('avgPing').innerText = avgPing + ' ms';
+  document.getElementById('minDownload').innerText = minDownload + ' Mbps';
+
+  // Last 10 records
+  const recentRecords = document.getElementById('recentRecords');
+  recentRecords.innerHTML = '';
+  data.timestamps.slice(-10).forEach((time, i) => {
+    recentRecords.innerHTML += `<tr class="border-t border-gray-300 dark:border-gray-600">
+      <td class="px-4 py-2">${time}</td>
+      <td class="px-4 py-2">${data.download[i]}</td>
+      <td class="px-4 py-2">${data.upload[i]}</td>
+      <td class="px-4 py-2">${data.ping[i]}</td>
+    </tr>`;
+  });
+
+  // Charts
+  const speedCtx = document.getElementById('speedChart').getContext('2d');
+  new Chart(speedCtx, {
+    type: 'line',
+    data: {
+      labels: data.timestamps,
+      datasets: [
+        { label: 'Download Mbps', data: data.download, borderColor: '#3b82f6', fill: false, tension: 0.3 },
+        { label: 'Upload Mbps', data: data.upload, borderColor: '#10b981', fill: false, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#374151' } } },
+      scales: {
+        x: { ticks: { color: '#374151' } },
+        y: { ticks: { color: '#374151' } }
+      }
+    }
+  });
+
+  const pingCtx = document.getElementById('pingChart').getContext('2d');
+  new Chart(pingCtx, {
+    type: 'line',
+    data: {
+      labels: data.timestamps,
+      datasets: [
+        { label: 'Ping (ms)', data: data.ping, borderColor: '#f59e0b', fill: false, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#374151' } } },
+      scales: {
+        x: { ticks: { color: '#374151' } },
+        y: { ticks: { color: '#374151' } }
+      }
+    }
+  });
+}
+
+// Dark Mode
+document.getElementById('darkModeToggle').addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+});
+
+fetchData();
+</script>
+</body>
+</html>
