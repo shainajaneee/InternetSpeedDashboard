@@ -18,3 +18,4 @@ Technologies Used
 - Chart.js – interactive line charts for speed and ping
 - Bootstrap 5 – responsive UI, cards, tables, and layout
 
+![Internet Speed Dashboard](internetspeed.png)
